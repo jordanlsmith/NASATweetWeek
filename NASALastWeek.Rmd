@@ -1,0 +1,118 @@
+---
+title: "NASALastWeek"
+output: html_notebook
+---
+
+```{r load libraries}
+library(rtweet)
+library(tidyverse)
+library(syuzhet)
+```
+
+```{r get NASA tweet timeline, last 3200 tweets}
+## get most recent 1000 tweets posted by NASA's account
+nasa <- get_timeline("NASA", n = 1000)
+```
+
+```{r filter for last seven days of tweets}
+# filter for last seven days of tweets
+lastweek <- nasa %>%
+  filter(created_at > (Sys.time() -(7*60*60*24))) #here, subtracting 7 days time from user's current datetime
+```
+
+```{r plot timeseries of tweets}
+## plot time series of tweets
+ts_plot(lastweek, "3 hours") +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold")) +
+  ggplot2::labs(
+    x = NULL, y = NULL,
+    title = "Frequency of @NASA tweets from past 7 days",
+    subtitle = "Twitter status (tweet) counts aggregated using three-hour intervals",
+    caption = "\nSource: Data collected from Twitter's REST API via rtweet"
+  )
+```
+
+```{r plot sentiment of tweets}
+ggplot(data = text_sentiment, aes(as.numeric(sentiment))) +
+  geom_histogram(binwidth=0.25) +
+  xlim(c(-3,3)) +
+  theme_minimal() +
+  labs(x = "Tweet Sentiment", y = "Count",
+       caption = "\nSource: Data collected from Twitter's REST API via rtweet")
+
+#hist(as.numeric(text_sentiment$sentiment))
+```
+
+```{r summary stats}
+totaltweets <- nrow(lastweek)
+mostfavorited <- lastweek$text[lastweek$favorite_count == max(lastweek$favorite_count)][1]
+leastfavorited <- lastweek$text[lastweek$favorite_count == min(lastweek$favorite_count)][1]
+mostretweeted <- lastweek$text[lastweek$retweet_count == max(lastweek$retweet_count)][1]
+leastretweeted <- lastweek$text[lastweek$retweet_count == min(lastweek$retweet_count)][1]
+```
+
+```{r find most common hashtags}
+#define function
+extract.hashes = function(vec){
+hash.pattern = "#[[:alpha:]]+"
+have.hash = grep(x = vec, pattern = hash.pattern)
+hash.matches = gregexpr(pattern = hash.pattern,
+                        text = vec[have.hash])
+extracted.hash = regmatches(x = vec[have.hash], m = hash.matches)
+ 
+df = data.frame(table(tolower(unlist(extracted.hash))))
+colnames(df) = c("tag","freq")
+df = df[order(df$freq,decreasing = TRUE),]
+return(df)
+}
+
+#get hashtag data
+hashtable <- transform(extract.hashes(lastweek$text),tag = reorder(tag,freq))
+tophashtag <- as.character(hashtable$tag[1])
+```
+
+```{r clean text for sentiment analysis}
+tweets <- lastweek$text
+ #get rid of unnecessary spaces
+clean_tweet <- str_replace_all(tweets," "," ")
+# Get rid of URLs
+clean_tweet <- str_replace_all(clean_tweet, "http(s?)://t.co/[a-z,A-Z,0-9]*","")
+# Take out retweet header, there is only one
+clean_tweet <- str_replace(clean_tweet,"RT @[a-z,A-Z]*: ","")
+# Get rid of hashtags
+clean_tweet <- str_replace_all(clean_tweet,"#[a-z,A-Z]*","")
+# Get rid of references to other screennames
+clean_tweet <- str_replace_all(clean_tweet,"@[a-z,A-Z]*","") 
+# Get rid of &
+clean_tweet = gsub("&amp", "", clean_tweet)
+# Get rid of punctuation
+clean_tweet = gsub("[[:punct:]]", "", clean_tweet)
+# Get rid of digits
+clean_tweet = gsub("[[:digit:]]", "", clean_tweet)
+```
+
+```{r perform sentiment analysis}
+corpus <- get_sentences(clean_tweet)
+ 
+sentiment <- get_sentiment(corpus)
+ 
+text_sentiment <- as.data.frame(cbind(lastweek$text, sentiment), stringsAsFactors = F)
+ 
+head(text_sentiment)
+
+most_positive <- as.character(text_sentiment$V1[sentiment == max(sentiment)][1])
+most_positive
+
+least_positive <- as.character(text_sentiment$V1[sentiment <= min(sentiment)][1])
+least_positive
+
+positive_tweets <- length(corpus[sentiment > 0])
+negative_tweets <- length(corpus[sentiment < 0])
+neutral_tweets <- length(corpus[sentiment == 0])
+
+category_sentiment <- ifelse(sentiment < 0, "Negative", ifelse(sentiment > 0, "Positive", "Neutral"))
+table(category_sentiment)
+```
+
+

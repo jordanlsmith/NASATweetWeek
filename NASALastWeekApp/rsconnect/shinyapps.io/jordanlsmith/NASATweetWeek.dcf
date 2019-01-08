@@ -1,0 +1,12 @@
+name: NASATweetWeek
+title: NASATweetWeek
+username:
+account: jordanlsmith
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 632081
+bundleId: 1803600
+url: https://jordanlsmith.shinyapps.io/NASATweetWeek/
+when: 1546981005.74086
+asMultiple: FALSE
+asStatic: FALSE
